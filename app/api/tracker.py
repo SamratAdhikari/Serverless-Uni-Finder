@@ -44,8 +44,26 @@ async def run_data_update():
         logger.info(f"Summary:")
         logger.info(f"   - Courses fetched: {result['courses_count']}")
         logger.info(f"   - Levels processed: {result['levels_processed']}")
+        logger.info(f"   - Database updates: {'✅ Yes' if result.get('database_updated', False) else '🔄 No (data unchanged)'}")
         logger.info(f"   - Duration: {duration}")
         logger.info(f"   - Completed at: {end_time}")
+        
+        # Log hash comparison results
+        if 'results_summary' in result:
+            logger.info("Hash comparison results:")
+            total_updates = 0
+            total_skipped = 0
+            for level_key, level_result in result['results_summary'].items():
+                db_updated = level_result.get('database_updated', False)
+                if db_updated:
+                    status = "✅ Updated"
+                    total_updates += 1
+                else:
+                    status = "🔄 Skipped (no changes)"
+                    total_skipped += 1
+                logger.info(f"   - {level_key}: {status}")
+            
+            logger.info(f"📊 Summary: {total_updates} levels updated, {total_skipped} levels skipped")
         
         return True
         

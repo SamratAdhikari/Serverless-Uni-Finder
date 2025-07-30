@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 sys.path.append(str(Path(__file__).parent.parent))
 from db.mongo import db
+from hash_utils import HashUtils
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ class YocketDataFetcher:
         }
         self.data_dir = Path("data")
         self.data_dir.mkdir(exist_ok=True)
-
+        
         self.countries_collection = db["countries"]
         self.courses_collection = db["courses"]
         self.universities_collection = db["universities"]
@@ -48,13 +49,26 @@ class YocketDataFetcher:
                 await asyncio.sleep(2 ** attempt)  
         return None
 
-
     async def save_courses_to_db(self, courses_data: List[Dict]):
+        """Save courses to database with hash comparison"""
         timestamp = datetime.now(timezone.utc)
         
+        # Check if data has changed using hash comparison
+        has_changed = await HashUtils.has_data_changed(
+            db, "courses", "all_courses", courses_data
+        )
+        
+        if not has_changed:
+            logger.info("🔄 Courses data unchanged - skipping database update")
+            return False
+        
+        logger.info("🔄 Courses data changed - updating database")
+        
+        # Clear existing data
         await self.courses_collection.delete_many({})
         
-
+        # Prepare documents for bulk insert
+        documents = []
         for course in courses_data:
             document = {
                 "course_name": course["name"],
@@ -65,15 +79,39 @@ class YocketDataFetcher:
                 "updated_at": timestamp,
                 "source": "yocket_api"
             }
-            await self.courses_collection.insert_one(document)
+            documents.append(document)
         
-        logger.info(f"Saved {len(courses_data)} courses to database")
+        # Bulk insert all documents at once
+        if documents:
+            await self.courses_collection.insert_many(documents)
+        
+        # Store the new hash
+        await HashUtils.store_hash(db, "courses", "all_courses", 
+                                 HashUtils.generate_data_hash(courses_data), len(courses_data))
+        
+        logger.info(f"✅ Saved {len(courses_data)} courses to database")
+        return True
 
     async def save_universities_to_db(self, universities_data: List[Dict], level: int):
+        """Save universities to database with hash comparison"""
         timestamp = datetime.now(timezone.utc)
         
+        # Check if data has changed using hash comparison
+        has_changed = await HashUtils.has_data_changed(
+            db, "universities", f"level_{level}", universities_data
+        )
+        
+        if not has_changed:
+            logger.info(f"🔄 Universities data for level {level} unchanged - skipping database update")
+            return False
+        
+        logger.info(f"🔄 Universities data for level {level} changed - updating database")
+        
+        # Clear existing data for this level
         await self.universities_collection.delete_many({"level": level})
         
+        # Prepare documents for bulk insert
+        documents = []
         for university in universities_data:
             document = {
                 **university,  
@@ -82,9 +120,18 @@ class YocketDataFetcher:
                 "updated_at": timestamp,
                 "source": "yocket_api"
             }
-            await self.universities_collection.insert_one(document)
+            documents.append(document)
         
-        logger.info(f"Saved {len(universities_data)} universities for level {level} to database")
+        # Bulk insert all documents at once
+        if documents:
+            await self.universities_collection.insert_many(documents)
+        
+        # Store the new hash
+        await HashUtils.store_hash(db, "universities", f"level_{level}", 
+                                 HashUtils.generate_data_hash(universities_data), len(universities_data))
+        
+        logger.info(f"✅ Saved {len(universities_data)} universities for level {level} to database")
+        return True
 
     async def fetch_all_courses(self) -> Dict[str, Any]:
         """Fetch all courses from Yocket API"""
@@ -147,15 +194,16 @@ class YocketDataFetcher:
         with open(course_list_path, "w") as f:
             json.dump(course_list_data, f, indent=2)
         
-        # Save courses to database as individual documents
-        await self.save_courses_to_db(all_courses)
+        # Save courses to database with hash comparison
+        db_updated = await self.save_courses_to_db(all_courses)
         
         logger.info(f"Saved {len(all_courses)} courses to courseList.json")
         
         return {
             "message": "Course list updated successfully",
             "courses_count": len(all_courses),
-            "saved_to": "data/courseList.json"
+            "saved_to": "data/courseList.json",
+            "database_updated": db_updated
         }
 
     async def fetch_single_level_data(self, level: int, course_names_array: List[str], country_names: str) -> Dict[str, Any]:
@@ -221,15 +269,16 @@ class YocketDataFetcher:
         with open(output_path, "w") as f:
             json.dump({"result": all_results}, f, indent=2)
         
-        # Save universities to database as individual documents
-        await self.save_universities_to_db(all_results, level)
+        # Save universities to database with hash comparison
+        db_updated = await self.save_universities_to_db(all_results, level)
         
         logger.info(f"[Level {level}] Data successfully written to {output_filename} ({len(all_results)} results)")
         
         return {
             "level": level,
             "count": len(all_results),
-            "saved_to": f"data/{output_filename}"
+            "saved_to": f"data/{output_filename}",
+            "database_updated": db_updated
         }
 
     async def fetch_detailed_data(self, levels: List[int] = [1, 2, 3, 4, 5]) -> Dict[str, Any]:
@@ -317,12 +366,20 @@ class YocketDataFetcher:
         # Step 2: Fetch detailed data for all levels (1-5)
         detailed_result = await self.fetch_detailed_data(levels=[1, 2, 3, 4, 5])
         
+        # Check if any database updates occurred
+        any_db_updates = courses_result.get('database_updated', False)
+        for level_result in detailed_result['results_summary'].values():
+            if level_result.get('database_updated', False):
+                any_db_updates = True
+                break
+        
         return {
             "message": "All courses fetched and detailed data saved for all levels",
             "courses_count": courses_result["courses_count"],
             "levels_processed": detailed_result["levels_processed"],
             "results_summary": detailed_result["results_summary"],
-            "courses_saved_to": courses_result["saved_to"]
+            "courses_saved_to": courses_result["saved_to"],
+            "database_updated": any_db_updates
         }
 
 # Global instance
