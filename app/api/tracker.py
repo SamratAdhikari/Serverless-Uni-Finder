@@ -44,7 +44,7 @@ async def run_data_update():
         logger.info(f"Summary:")
         logger.info(f"   - Courses fetched: {result['courses_count']}")
         logger.info(f"   - Levels processed: {result['levels_processed']}")
-        logger.info(f"   - Database updates: {'✅ Yes' if result.get('database_updated', False) else '🔄 No (data unchanged)'}")
+        logger.info(f"   - Database updates: {'[YES]' if result.get('database_updated', False) else '[NO] (data unchanged)'}")
         logger.info(f"   - Duration: {duration}")
         logger.info(f"   - Completed at: {end_time}")
         
@@ -56,14 +56,14 @@ async def run_data_update():
             for level_key, level_result in result['results_summary'].items():
                 db_updated = level_result.get('database_updated', False)
                 if db_updated:
-                    status = "✅ Updated"
+                    status = "[UPDATED]"
                     total_updates += 1
                 else:
-                    status = "🔄 Skipped (no changes)"
+                    status = "[SKIPPED] (no changes)"
                     total_skipped += 1
                 logger.info(f"   - {level_key}: {status}")
             
-            logger.info(f"📊 Summary: {total_updates} levels updated, {total_skipped} levels skipped")
+            logger.info(f"[SUMMARY] {total_updates} levels updated, {total_skipped} levels skipped")
         
         return True
         
@@ -85,7 +85,7 @@ async def run_sequential_fetcher():
         while True:
             fetch_count += 1
             logger.info(f"\n{'='*60}")
-            logger.info(f"🔄 Fetch #{fetch_count}")
+            logger.info(f"[FETCH] Fetch #{fetch_count}")
             logger.info(f"{'='*60}")
             
             # Run the data fetch

@@ -59,10 +59,10 @@ class YocketDataFetcher:
         )
         
         if not has_changed:
-            logger.info("🔄 Courses data unchanged - skipping database update")
+            logger.info("[SKIP] Courses data unchanged - skipping database update")
             return False
         
-        logger.info("🔄 Courses data changed - updating database")
+        logger.info("[UPDATE] Courses data changed - updating database")
         
         # Clear existing data
         await self.courses_collection.delete_many({})
@@ -89,7 +89,7 @@ class YocketDataFetcher:
         await HashUtils.store_hash(db, "courses", "all_courses", 
                                  HashUtils.generate_data_hash(courses_data), len(courses_data))
         
-        logger.info(f"✅ Saved {len(courses_data)} courses to database")
+        logger.info(f"[SUCCESS] Saved {len(courses_data)} courses to database")
         return True
 
     async def save_universities_to_db(self, universities_data: List[Dict], level: int):
@@ -102,10 +102,10 @@ class YocketDataFetcher:
         )
         
         if not has_changed:
-            logger.info(f"🔄 Universities data for level {level} unchanged - skipping database update")
+            logger.info(f"[SKIP] Universities data for level {level} unchanged - skipping database update")
             return False
         
-        logger.info(f"🔄 Universities data for level {level} changed - updating database")
+        logger.info(f"[UPDATE] Universities data for level {level} changed - updating database")
         
         # Clear existing data for this level
         await self.universities_collection.delete_many({"level": level})
@@ -130,7 +130,7 @@ class YocketDataFetcher:
         await HashUtils.store_hash(db, "universities", f"level_{level}", 
                                  HashUtils.generate_data_hash(universities_data), len(universities_data))
         
-        logger.info(f"✅ Saved {len(universities_data)} universities for level {level} to database")
+        logger.info(f"[SUCCESS] Saved {len(universities_data)} universities for level {level} to database")
         return True
 
     async def fetch_all_courses(self) -> Dict[str, Any]:
