@@ -1,7 +1,14 @@
 fastapi
 uvicorn
 aiohttp
+beanie
 motor
 pymongo
 python-multipart 
 python-dotenv
+numpy
+pandas
+langchain-google-genai
+langchain_community
+tqdm
+faiss-cpu

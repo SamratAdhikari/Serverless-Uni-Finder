@@ -23,3 +23,7 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Cache files
+app/vector_store_cache/
+app/api/data/
